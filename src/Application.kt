@@ -1,6 +1,7 @@
 package com.cms.bff.dibericky
 
-import com.cms.bff.dibericky.models.CustomViews
+import com.cms.bff.dibericky.models.CustomView
+import com.cms.bff.dibericky.models.getSpecificCustomViewByType
 import com.cms.bff.dibericky.services.CrudService
 import com.cms.bff.dibericky.services.CustomViewsService
 import io.ktor.application.*
@@ -24,7 +25,7 @@ fun String.asResource() = this.javaClass::class.java.getResource(this).readText(
 
 fun main(args: Array<String>): Unit = io.ktor.server.netty.EngineMain.main(args)
 
-val customViewCrudService = CrudService<CustomViews>(DbMock.customViews)
+val customViewCrudService = CrudService<CustomView>(CustomViewsMock)
 val customViewsService = CustomViewsService(customViewCrudService)
 
 @Suppress("unused") // Referenced in application.conf
@@ -72,9 +73,22 @@ fun Application.module(testing: Boolean = false) {
         }
         get<LocationCustomViews>{
            val list = customViewsService.getList()
-            val map : MutableMap<String, CustomViews> = mutableMapOf()
-            list.forEach { map.putIfAbsent(it.id, it) }
+            val map : MutableMap<String, CustomView> = mutableMapOf()
+            list.forEach { customView ->
+                customView.id?.also { id ->
+                    map.putIfAbsent(id, customView)
+                }
+            }
             call.respond(map)
+        }
+        post<LocationCustomViews> {
+            val body = call.receive<Map<String, Any>>()
+            try {
+                val newItem = customViewsService.addItem(body)
+                call.respond(newItem)
+            }catch (e: CustomViewMissingTypeException) {
+                call.respond(HttpStatusCode.BadRequest)
+            }
         }
 
         get<MyLocation> {
