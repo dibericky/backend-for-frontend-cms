@@ -1,5 +1,8 @@
 package com.cms.bff.dibericky
 
+import com.cms.bff.dibericky.models.CustomViews
+import com.cms.bff.dibericky.services.CrudService
+import com.cms.bff.dibericky.services.CustomViewsService
 import io.ktor.application.*
 import io.ktor.response.*
 import io.ktor.request.*
@@ -12,17 +15,25 @@ import io.ktor.client.*
 import io.ktor.client.engine.apache.*
 import io.ktor.client.features.json.*
 import io.ktor.client.request.*
+import io.ktor.features.ContentNegotiation
 import io.ktor.http.ContentDisposition.Companion.File
+import io.ktor.jackson.JacksonConverter
 import kotlinx.coroutines.*
 
 fun String.asResource() = this.javaClass::class.java.getResource(this).readText()
 
 fun main(args: Array<String>): Unit = io.ktor.server.netty.EngineMain.main(args)
 
+val customViewCrudService = CrudService<CustomViews>(DbMock.customViews)
+val customViewsService = CustomViewsService(customViewCrudService)
+
 @Suppress("unused") // Referenced in application.conf
 @kotlin.jvm.JvmOverloads
 fun Application.module(testing: Boolean = false) {
     install(Locations) {
+    }
+    install(ContentNegotiation) {
+        register(ContentType.Application.Json, JacksonConverter())
     }
 
     val client = HttpClient(Apache) {
@@ -51,17 +62,19 @@ fun Application.module(testing: Boolean = false) {
             resources("static")
         }
 
-        get<Collections>{
+        get<LocationCollections>{
             val json = "/mocks_data/collections.json".asResource()
             call.respondText(json)
         }
-        get<Configs>{
+        get<LocationConfigs>{
             val json = "/mocks_data/configs.json".asResource()
             call.respondText(json)
         }
-        get<CustomViews>{
-            val json = "/mocks_data/custom-views.json".asResource()
-            call.respondText(json)
+        get<LocationCustomViews>{
+           val list = customViewsService.getList()
+            val map : MutableMap<String, CustomViews> = mutableMapOf()
+            list.forEach { map.putIfAbsent(it.id, it) }
+            call.respond(map)
         }
 
         get<MyLocation> {
@@ -78,13 +91,13 @@ fun Application.module(testing: Boolean = false) {
 }
 
 @Location("/collections")
-class Collections()
+class LocationCollections()
 
 @Location("/configs")
-class Configs()
+class LocationConfigs()
 
 @Location("/custom-views")
-class CustomViews()
+class LocationCustomViews()
 
 
 @Location("/location/{name}")
